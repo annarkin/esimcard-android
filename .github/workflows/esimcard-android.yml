@@ -7,7 +7,7 @@ name: EsimCard Android
 on:
   workflow_dispatch:
   push:
-    branches: [esimcard]
+    branches: [esimcard, esimcard-test]
     tags: ['esimcard-v*']
 
 permissions:
@@ -76,6 +76,16 @@ jobs:
           name: EsimCard-android
           path: dist/*
           if-no-files-found: error
+
+      - name: GitHub pre-release (test branch)
+        if: github.ref == 'refs/heads/esimcard-test'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="esimcard-test-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "EsimCard — тестовая сборка #${GITHUB_RUN_NUMBER} (диагностика)" \
+            --notes "Тестовая сборка: Настройки → О приложении → «Привилегии оператора». Не для RuStore."
 
       - name: GitHub release
         if: github.ref == 'refs/heads/esimcard' || startsWith(github.ref, 'refs/tags/esimcard-v')

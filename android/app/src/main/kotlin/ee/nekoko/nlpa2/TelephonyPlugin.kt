@@ -478,6 +478,7 @@ class TelephonyPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             try {
                 when (call.method) {
                     "hasPrivilegedPermission" -> handleHasPrivilegedPermission(result)
+                    "carrierPrivileges" -> handleCarrierPrivileges(result)
                     "listSlots" -> handleListSlots(result)
                     "openChannel" -> handleOpenChannel(call, result)
                     "closeChannel" -> handleCloseChannel(call, result)
@@ -519,6 +520,55 @@ class TelephonyPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                     false
                 }
         runOnUiThread { result.success(hasPermission) }
+    }
+
+    // EsimCard diagnostic: does this app hold carrier privileges for each active SIM?
+    // Carrier privileges come from the card's ARA-M rules matching our signing cert.
+    private fun handleCarrierPrivileges(result: Result) {
+        val ctx = context
+        val tm = telephonyManager
+        if (ctx == null || tm == null) {
+            return runOnUiThread {
+                result.error("NOT_AVAILABLE", "TelephonyManager not available", null)
+            }
+        }
+        val out = mutableListOf<Map<String, Any?>>()
+        val slotCount =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) tm.activeModemCount
+                else @Suppress("DEPRECATION") tm.phoneCount
+        for (slot in 0 until slotCount) {
+            val subIds: IntArray? =
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            ctx.getSystemService(android.telephony.SubscriptionManager::class.java)
+                                    ?.getSubscriptionIds(slot)
+                        } else {
+                            android.telephony.SubscriptionManager::class.java
+                                    .getMethod("getSubId", Int::class.javaPrimitiveType)
+                                    .invoke(null, slot) as? IntArray
+                        }
+                    } catch (e: Exception) {
+                        null
+                    }
+            val subId = subIds?.firstOrNull { it >= 0 }
+            if (subId == null) {
+                out.add(mapOf("slot" to slot, "active" to false))
+                continue
+            }
+            val stm = tm.createForSubscriptionId(subId)
+            val privileged = try { stm.hasCarrierPrivileges() } catch (e: Exception) { false }
+            val operator = try { stm.simOperatorName } catch (e: Exception) { null }
+            out.add(
+                    mapOf(
+                            "slot" to slot,
+                            "active" to true,
+                            "subId" to subId,
+                            "operator" to operator,
+                            "carrierPrivileges" to privileged,
+                    )
+            )
+        }
+        runOnUiThread { result.success(out) }
     }
 
     private fun runOnUiThread(action: () -> Unit) {

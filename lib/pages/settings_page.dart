@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../settings/app_settings.dart';
 import '../plugins/plugin_base.dart';
 import '../plugins/plugin_manager.dart';
@@ -377,6 +378,7 @@ class SettingsPage extends StatelessWidget {
                   title: l10n.about,
                   children: [
                     _buildVersionTile(context, width),
+                    _buildCarrierPrivilegesTile(context, width),
                     _buildUpdateCheckSwitcher(context, width),
                   ],
                 ),
@@ -639,6 +641,69 @@ class SettingsPage extends StatelessWidget {
             settings.setLocale(newValue == 'null' ? null : newValue);
           }
         },
+      ),
+    );
+  }
+
+  // EsimCard diagnostic (test build): carrier privileges per SIM slot.
+  Widget _buildCarrierPrivilegesTile(BuildContext context, double screenWidth) {
+    return _buildResponsiveTile(
+      context,
+      screenWidth: screenWidth,
+      icon: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.12),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.security_rounded, size: 20, color: Colors.orange),
+      ),
+      title: 'Привилегии оператора',
+      subtitle: 'Диагностика безопасности EsimCard',
+      onTap: () => _showCarrierPrivileges(context),
+      child: Icon(
+        Icons.chevron_right,
+        color: AppTheme.onSurfaceVerySubtle(context),
+      ),
+    );
+  }
+
+  Future<void> _showCarrierPrivileges(BuildContext context) async {
+    const channel = MethodChannel('ee.nekoko.telephony_plugin');
+    String text;
+    try {
+      final List<dynamic>? slots = await channel.invokeMethod('carrierPrivileges');
+      if (slots == null || slots.isEmpty) {
+        text = 'SIM-слоты не найдены.';
+      } else {
+        text = slots.map((dynamic e) {
+          final m = Map<String, dynamic>.from(e as Map);
+          final n = (m['slot'] as int) + 1;
+          if (m['active'] != true) return 'SIM $n: нет активного профиля';
+          final op = (m['operator'] as String?)?.trim();
+          final name = (op == null || op.isEmpty) ? 'без названия' : op;
+          final priv = m['carrierPrivileges'] == true ? 'ЕСТЬ ⚠️' : 'нет ✅';
+          return 'SIM $n ($name): $priv';
+        }).join('\n');
+      }
+    } catch (e) {
+      text = 'Ошибка проверки: $e';
+    }
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Привилегии оператора'),
+        content: Text(
+          '$text\n\n«ЕСТЬ» — приложения с публичной подписью могут запрашивать '
+          'у этой SIM проверку подлинности. Проверяйте с включённым профилем на модуле.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
