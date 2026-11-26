@@ -70,7 +70,7 @@ android {
             dimension = "version"
             applicationId = "ru.esimcard.app"
             manifestPlaceholders["appName"] = "EsimCard"
-            signingConfig = signingConfigs.findByName("esimcard") ?: signingConfigs.getByName("community")
+            signingConfig = signingConfigs.getByName("community")
         }
 
         create("privileged") {
@@ -99,7 +99,7 @@ android {
 
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.findByName("esimcard") ?: signingConfigs.getByName("community")
+            signingConfig = signingConfigs.getByName("community")
             isMinifyEnabled = false
             isShrinkResources = false
             proguardFiles(

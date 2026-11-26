@@ -1,9 +1,9 @@
 name: EsimCard Android
 
 # Builds the EsimCard APK (Android only) from this fork.
-# Required repository secrets:
-#   ESIMCARD_KEYSTORE_B64       – base64 of esimcard-release.jks
-#   ESIMCARD_KEYSTORE_PASSWORD  – keystore/key password
+# Signed with the public NekokoLPA2 community key (SHA-1 C47350C7...AD73):
+# its hash is in the ARA-M of EsimCard chips, so OMAPI access works.
+# No secrets needed.
 on:
   workflow_dispatch:
   push:
@@ -48,22 +48,9 @@ jobs:
           rustup target add --toolchain "$CARGOKIT_TOOLCHAIN" \
             aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 
-      - name: Signing key
-        env:
-          KEYSTORE_B64: ${{ secrets.ESIMCARD_KEYSTORE_B64 }}
-        run: |
-          if [ -z "$KEYSTORE_B64" ]; then
-            echo "::error::Secret ESIMCARD_KEYSTORE_B64 is missing – refusing to sign with the public community key"
-            exit 1
-          fi
-          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/esimcard.jks"
-          echo "ESIMCARD_KEYSTORE=$RUNNER_TEMP/esimcard.jks" >> "$GITHUB_ENV"
-
       - run: flutter pub get --enforce-lockfile
 
       - name: Build APK
-        env:
-          ESIMCARD_KEYSTORE_PASSWORD: ${{ secrets.ESIMCARD_KEYSTORE_PASSWORD }}
         run: |
           flutter build apk --release --flavor community --target lib/main.dart \
             --dart-define=APP_VARIANT=community \
@@ -73,9 +60,8 @@ jobs:
         run: |
           APK=build/app/outputs/flutter-apk/app-community-release.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | tee signer.txt
-          if grep -q "C=CN" signer.txt && ! grep -q "EsimCard" signer.txt; then
-            echo "::error::APK is signed with the community key, not EsimCard"; exit 1
-          fi
+          grep -qi "c47350c7ba682b34a3e584a0d58463ea42b1ad73" signer.txt || \
+            { echo "::error::APK is not signed with the community key expected by the chips' ARA-M"; exit 1; }
           VERSION="$(awk '/^version:/ { print $2; exit }' pubspec.yaml)"
           mkdir -p dist
           cp "$APK" "dist/EsimCard-${VERSION//+/-}.apk"
