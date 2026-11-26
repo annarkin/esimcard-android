@@ -1,0 +1,94 @@
+name: EsimCard Android
+
+# Builds the EsimCard APK (Android only) from this fork.
+# Required repository secrets:
+#   ESIMCARD_KEYSTORE_B64       – base64 of esimcard-release.jks
+#   ESIMCARD_KEYSTORE_PASSWORD  – keystore/key password
+on:
+  workflow_dispatch:
+  push:
+    branches: [esimcard]
+    tags: ['esimcard-v*']
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: 3.47.2
+  CARGOKIT_TOOLCHAIN: 1.99.1
+  NDK_VERSION: 28.2.13676358
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platforms;android-36' 'build-tools;36.0.0' "ndk;${NDK_VERSION}" >/dev/null
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install "$CARGOKIT_TOOLCHAIN" --profile minimal
+          rustup target add --toolchain "$CARGOKIT_TOOLCHAIN" \
+            aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ESIMCARD_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Secret ESIMCARD_KEYSTORE_B64 is missing – refusing to sign with the public community key"
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/esimcard.jks"
+          echo "ESIMCARD_KEYSTORE=$RUNNER_TEMP/esimcard.jks" >> "$GITHUB_ENV"
+
+      - run: flutter pub get --enforce-lockfile
+
+      - name: Build APK
+        env:
+          ESIMCARD_KEYSTORE_PASSWORD: ${{ secrets.ESIMCARD_KEYSTORE_PASSWORD }}
+        run: |
+          flutter build apk --release --flavor community --target lib/main.dart \
+            --dart-define=APP_VARIANT=community \
+            --dart-define=GM_PSK_URL=https://key.9esim.com/psk
+
+      - name: Verify signature and package
+        run: |
+          APK=build/app/outputs/flutter-apk/app-community-release.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | tee signer.txt
+          if grep -q "C=CN" signer.txt && ! grep -q "EsimCard" signer.txt; then
+            echo "::error::APK is signed with the community key, not EsimCard"; exit 1
+          fi
+          VERSION="$(awk '/^version:/ { print $2; exit }' pubspec.yaml)"
+          mkdir -p dist
+          cp "$APK" "dist/EsimCard-${VERSION//+/-}.apk"
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EsimCard-android
+          path: dist/*
+          if-no-files-found: error
+
+      - name: GitHub release (tags only)
+        if: startsWith(github.ref, 'refs/tags/esimcard-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "EsimCard $GITHUB_REF_NAME" --notes "EsimCard Android build based on NekokoLPA2 (MIT)."

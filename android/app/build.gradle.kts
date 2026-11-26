@@ -51,6 +51,16 @@ android {
             keyAlias = "communitykey"
             keyPassword = "CommunityKey"
         }
+        // EsimCard release key: CI passes it via env (GitHub Secrets). Never commit the .jks.
+        val esimcardStore = System.getenv("ESIMCARD_KEYSTORE")
+        if (esimcardStore != null && file(esimcardStore).exists()) {
+            create("esimcard") {
+                storeFile = file(esimcardStore)
+                storePassword = System.getenv("ESIMCARD_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ESIMCARD_KEY_ALIAS") ?: "esimcard"
+                keyPassword = System.getenv("ESIMCARD_KEY_PASSWORD") ?: System.getenv("ESIMCARD_KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     flavorDimensions += "version"
@@ -58,9 +68,9 @@ android {
     productFlavors {
         create("community") {
             dimension = "version"
-            applicationId = "ee.nekoko.nlpa2.open"
-            manifestPlaceholders["appName"] = "NekokoLPA 2 Community"
-            signingConfig = signingConfigs.getByName("community")
+            applicationId = "ru.esimcard.app"
+            manifestPlaceholders["appName"] = "EsimCard"
+            signingConfig = signingConfigs.findByName("esimcard") ?: signingConfigs.getByName("community")
         }
 
         create("privileged") {
@@ -80,7 +90,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "ee.nekoko.nlpa2.open"
+        applicationId = "ru.esimcard.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -89,6 +99,7 @@ android {
 
     buildTypes {
         getByName("release") {
+            signingConfig = signingConfigs.findByName("esimcard") ?: signingConfigs.getByName("community")
             isMinifyEnabled = false
             isShrinkResources = false
             proguardFiles(

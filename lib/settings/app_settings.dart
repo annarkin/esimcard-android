@@ -108,7 +108,8 @@ class AppSettings extends ChangeNotifier {
     }
 
     // Public Android identity wins over stale rebranding assets.
-    if (PlatformX.isAndroid && _packageName.endsWith('.open')) {
+    if (PlatformX.isAndroid &&
+        (_packageName.endsWith('.open') || _packageName == 'ru.esimcard.app')) {
       return 'community';
     }
     if (PlatformX.isAndroid &&
@@ -151,7 +152,7 @@ class AppSettings extends ChangeNotifier {
   String get appName {
     final v = variant;
     if (v == 'esim9') return '9eSIM';
-    if (v == 'community') return 'NekokoLPA 2 Community';
+    if (v == 'community') return 'EsimCard';
     if (v == 'community-rooted') return 'NekokoLPA 2 Community Rooted';
     return 'NekokoLPA 2';
   }

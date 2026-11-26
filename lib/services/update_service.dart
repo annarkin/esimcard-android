@@ -25,7 +25,9 @@ class UpdateInfo {
 
 class UpdateService {
   static final Logger _log = Logger('UpdateService');
-  static const String _configUrl = 'https://updates.lpa.ee/nlpa2.json';
+  // EsimCard: own update feed (set via --dart-define=UPDATE_CONFIG_URL=...).
+  // Empty = update checks disabled, so the app never pulls NekokoLPA builds.
+  static const String _configUrl = String.fromEnvironment('UPDATE_CONFIG_URL');
   static const _certChannel = MethodChannel('ee.nekoko.certificate_plugin');
 
   Future<UpdateInfo?> checkForUpdates() async {
@@ -37,6 +39,7 @@ class UpdateService {
         _log.info('Update check skipped for OS: $os');
         return null;
       }
+      if (_configUrl.isEmpty) return null;
 
       final response = await http
           .get(Uri.parse(_configUrl))
