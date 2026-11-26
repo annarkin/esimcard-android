@@ -91,7 +91,7 @@ android {
 
     defaultConfig {
         applicationId = "ru.esimcard.app"
-        minSdk = flutter.minSdkVersion
+        minSdk = 28 // EsimCard: the module works only on Android 9+
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
