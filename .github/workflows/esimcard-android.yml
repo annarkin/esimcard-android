@@ -73,8 +73,17 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
-      - name: GitHub release (tags only)
-        if: startsWith(github.ref, 'refs/tags/esimcard-v')
+      - name: GitHub release
+        if: github.ref == 'refs/heads/esimcard' || startsWith(github.ref, 'refs/tags/esimcard-v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --title "EsimCard $GITHUB_REF_NAME" --notes "EsimCard Android build based on NekokoLPA2 (MIT)."
+        run: |
+          VERSION="$(awk '/^version:/ { print $2; exit }' pubspec.yaml)"
+          TAG="esimcard-v${VERSION//+/-}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --target "$GITHUB_SHA" --latest \
+              --title "EsimCard ${VERSION}" \
+              --notes "EsimCard для Android. Основано на NekokoLPA2 (MIT)."
+          fi
