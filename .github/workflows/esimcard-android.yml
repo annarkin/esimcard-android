@@ -9,6 +9,7 @@ on:
   push:
     branches: [esimcard]
     tags: ['esimcard-v*']
+    paths-ignore: ['**.md', 'docs/**']
 
 permissions:
   contents: write
