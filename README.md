@@ -1,12 +1,8 @@
-<p align="center">
-  <img src="assets/logo-community.png" width="128" alt="EsimCard">
-</p>
+![EsimCard — eSIM для путешествий](docs/assets/esimcard-banner.png)
 
-<h1 align="center">EsimCard</h1>
+# EsimCard
 
-<p align="center">
-  Android-приложение для модулей eSIM <a href="https://esimcard.ru">EsimCard</a>
-</p>
+Android-приложение для модулей eSIM [EsimCard](https://esimcard.ru)
 
 ---
 
